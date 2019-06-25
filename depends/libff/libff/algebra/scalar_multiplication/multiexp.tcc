@@ -418,6 +418,8 @@ T multi_exp(typename std::vector<T>::const_iterator vec_start,
 
     std::vector<T> partial(chunks, T::zero());
 
+    T final = T::zero();
+
 #ifdef MULTICORE
 #pragma omp parallel for
 #endif
@@ -428,14 +430,18 @@ T multi_exp(typename std::vector<T>::const_iterator vec_start,
              (i == chunks-1 ? vec_end : vec_start + (i+1)*one),
              scalar_start + i*one,
              (i == chunks-1 ? scalar_end : scalar_start + (i+1)*one));
+#ifdef Multicore
+        #pragma omp critical
+            final = final + partial[i];
     }
-
-    T final = T::zero();
+#else
+    }
 
     for (size_t i = 0; i < chunks; ++i)
     {
         final = final + partial[i];
     }
+#endif
 
     return final;
 }
@@ -490,9 +496,12 @@ T multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator vec_star
     print_indent(); printf("* Elements of w processed with special addition: %zu (%0.2f%%)\n", num_add, 100.*num_add/(num_skip+num_add+num_other));
     print_indent(); printf("* Elements of w remaining: %zu (%0.2f%%)\n", num_other, 100.*num_other/(num_skip+num_add+num_other));
 
+    
+    auto tmp = acc + multi_exp<T, FieldT, Method>(g.begin(), g.end(), p.begin(), p.end(), chunks);
+
     leave_block("Process scalar vector");
 
-    return acc + multi_exp<T, FieldT, Method>(g.begin(), g.end(), p.begin(), p.end(), chunks);
+    return tmp;
 }
 
 template <typename T>
