@@ -73,6 +73,7 @@ void run_prover(const char *params_path, const char *input_path,
   // Now the 5 multi-exponentiations
   typename B::G1 *evaluation_At = B::multiexp_G1(
       B::input_w(input), B::params_A(params), B::params_m(params) + 1);
+
   typename B::G1 *evaluation_Bt1 = B::multiexp_G1(
       B::input_w(input), B::params_B1(params), B::params_m(params) + 1);
   typename B::G2 *evaluation_Bt2 = B::multiexp_G2(

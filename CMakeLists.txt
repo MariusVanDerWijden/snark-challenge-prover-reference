@@ -255,10 +255,18 @@ add_subdirectory(depends)
 add_subdirectory(libsnark)
 add_subdirectory(cuda-fixnum)
 
-add_executable (
+enable_language(CUDA)
+
+find_package(CUDA REQUIRED)
+
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v; -lineinfo; -use_fast_math)
+list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3)
+
+cuda_add_executable (
     cuda_prover_piecewise
     EXCLUDE_FROM_ALL
 
     cuda_prover_piecewise.cu
 )
+target_include_directories(cuda_prover_piecewise PUBLIC ${CUDA_INCLUDE_DIRS})
 target_link_libraries(cuda_prover_piecewise cuda_main prover_reference_functions)

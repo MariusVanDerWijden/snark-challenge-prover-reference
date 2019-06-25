@@ -213,9 +213,16 @@ target_link_libraries(
   snark
 )
 
-add_library (
+enable_language(CUDA)
+
+find_package(CUDA REQUIRED)
+
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v; -lineinfo; -use_fast_math)
+list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3)
+
+cuda_add_library (
     prover_reference_functions STATIC
-    prover_reference_functions.cpp
+    prover_reference_functions.cu
     prover_reference_include/prover_reference_functions.hpp
 )
 

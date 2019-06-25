@@ -12,6 +12,7 @@
 #include <libsnark/reductions/r1cs_to_qap/r1cs_to_qap.hpp>
 #include <libsnark/serialization.hpp>
 #include <omp.h>
+#include "printf.h"
 
 #include <libsnark/zk_proof_systems/ppzksnark/r1cs_gg_ppzksnark/r1cs_gg_ppzksnark.hpp>
 
@@ -19,8 +20,163 @@
 
 #include "prover_reference_include/prover_reference_functions.hpp"
 
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+#include "device_field_operators.h"
+
+
 using namespace libff;
 using namespace libsnark;
+
+#define GRID_SIZE 32
+#define BLOCK_SIZE 16 
+
+template<typename FieldT> 
+__device__ __constant__ FieldT zero;
+template<typename T>
+__device__ T out;
+
+template <typename T, unsigned int blockSize>
+__device__ void warpReduce(volatile int *sdata, unsigned int tid) {
+    if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
+    if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
+    if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
+    if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
+    if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
+    if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+}
+
+template <typename T, typename FieldT, unsigned int blockSize>
+__global__ void cuda_multi_exp_inner(T *vec, FieldT *scalar, unsigned int field_size) {
+    extern __shared__ T sdata[];
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x*(blockSize*2) + tid;
+    unsigned int gridSize = blockSize*2*gridDim.x;
+
+    sdata[tid] = zero<T>;
+    while (i < field_size) { 
+        sdata[tid] += scalar[i] * vec[i]; i += gridSize; }
+    __syncthreads();
+    
+    if (blockSize >= 2048) { if (tid < 1024) { sdata[tid] += sdata[tid + 1024]; } __syncthreads(); }
+    if (blockSize >= 1024) { if (tid < 512) { sdata[tid] += sdata[tid + 512]; } __syncthreads(); }
+    if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }
+    if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }
+    if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
+
+    if (tid < 32) warpReduce(sdata, tid);
+    if (tid == 0) out<T> = sdata[0];
+}
+
+//template void cuda_multi_exp_inner(fields::Field *vec, fields::Field *scalar, unsigned int field_size);
+
+template<typename T, typename FieldT>
+T multi_exp_inner(
+    typename std::vector<T>::const_iterator vec_start,
+    typename std::vector<T>::const_iterator vec_end,
+    typename std::vector<FieldT>::const_iterator scalar_start,
+    typename std::vector<FieldT>::const_iterator scalar_end)
+{
+    T *d_vec;
+    FieldT *d_scalar;
+    size_t vec_size = (vec_end - vec_start) * sizeof(T);
+    size_t scalar_size = (scalar_end - scalar_start) * sizeof(FieldT);
+
+    cudaMalloc((void **)&d_vec, vec_size);
+    cudaMalloc((void **)&d_scalar, scalar_size);
+	
+    cudaMemcpy(d_vec, &vec_start, vec_size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_scalar, &scalar_start, scalar_size, cudaMemcpyHostToDevice);
+    uint smemSize = vec_size / 2;	
+
+    dim3 dimGrid (GRID_SIZE, GRID_SIZE);
+    dim3 dimBlock (BLOCK_SIZE, BLOCK_SIZE);
+    uint threads = dimGrid.x * dimGrid.y;
+    switch (threads)
+    {
+        case 2048:
+        cuda_multi_exp_inner<fields::Field,fields::Field,2048>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar); break;
+        case 1024:
+        cuda_multi_exp_inner<fields::Field,fields::Field,1024>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar); break;
+        case 512:
+        cuda_multi_exp_inner<fields::Field,fields::Field,512>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar); break;
+        case 256:
+        cuda_multi_exp_inner<fields::Field,fields::Field,256>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar); break;
+    }
+
+    T* res; T result;
+    CUDA_CALL (cudaGetSymbolAddress((void**) &res, out<T>));
+    cudaMemcpy(result, res, sizeof(T), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_vec);
+    cudaFree(d_scalar);
+    return result;
+}
+
+
+template<typename T, typename FieldT>
+T multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator vec_start,
+                                typename std::vector<T>::const_iterator vec_end,
+                                typename std::vector<FieldT>::const_iterator scalar_start,
+                                typename std::vector<FieldT>::const_iterator scalar_end,
+                                const size_t chunks)
+{
+    assert(std::distance(vec_start, vec_end) == std::distance(scalar_start, scalar_end));
+    enter_block("Process scalar vector");
+    auto value_it = vec_start;
+    auto scalar_it = scalar_start;
+
+    const FieldT zero = FieldT::zero();
+    const FieldT one = FieldT::one();
+    std::vector<FieldT> p;
+    std::vector<T> g;
+
+    T acc = T::zero();
+
+    size_t num_skip = 0;
+    size_t num_add = 0;
+    size_t num_other = 0;
+
+    for (; scalar_it != scalar_end; ++scalar_it, ++value_it)
+    {
+        if (*scalar_it == zero)
+        {
+            // do nothing
+            ++num_skip;
+        }
+        else if (*scalar_it == one)
+        {
+#ifdef USE_MIXED_ADDITION
+            acc = acc.mixed_add(*value_it);
+#else
+            acc = acc + (*value_it);
+#endif
+            ++num_add;
+        }
+        else
+        {
+            p.emplace_back(*scalar_it);
+            g.emplace_back(*value_it);
+            ++num_other;
+        }
+    }
+    print_indent(); printf("* Elements of w skipped: %zu (%0.2f%%)\n", num_skip, 100.*num_skip/(num_skip+num_add+num_other));
+    print_indent(); printf("* Elements of w processed with special addition: %zu (%0.2f%%)\n", num_add, 100.*num_add/(num_skip+num_add+num_other));
+    print_indent(); printf("* Elements of w remaining: %zu (%0.2f%%)\n", num_other, 100.*num_other/(num_skip+num_add+num_other));
+
+    
+    auto tmp = acc + multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end(), chunks);
+
+    leave_block("Process scalar vector");
+
+    return tmp;
+}
 
 const multi_exp_method method = multi_exp_method_BDLO12;
 
@@ -28,14 +184,13 @@ template <typename G, typename Fr>
 G multiexp(typename std::vector<Fr>::const_iterator scalar_start,
            typename std::vector<G>::const_iterator g_start, size_t length) {
 #ifdef MULTICORE
-  const size_t chunks =
-      omp_get_max_threads(); // to override, set OMP_NUM_THREADS env var or call
+  const size_t chunks = length; // to override, set OMP_NUM_THREADS env var or call
                              // omp_set_num_threads()
 #else
   const size_t chunks = 1;
 #endif
 
-  return libff::multi_exp_with_mixed_addition<G, Fr, method>(
+  return multi_exp_with_mixed_addition<G, Fr, method>(
       g_start, g_start + length, scalar_start, scalar_start + length, chunks);
 }
 
@@ -248,7 +403,7 @@ mnt4753_libsnark::G1 *
 mnt4753_libsnark::multiexp_G1(mnt4753_libsnark::vector_Fr *scalar_start,
                               mnt4753_libsnark::vector_G1 *g_start,
                               size_t length) {
-
+                                printf("###########");
   return new mnt4753_libsnark::G1{
       multiexp<libff::G1<mnt4753_pp>, Fr<mnt4753_pp>>(
           scalar_start->data->begin() + scalar_start->offset,
