@@ -21,7 +21,7 @@
 using namespace libff;
 using namespace libsnark;
 
-const multi_exp_method method = multi_exp_method_BDLO12;
+ const multi_exp_method method = multi_exp_method_naive;
 // const multi_exp_method method = multi_exp_method_bos_coster;
 
 template<typename ppT>
@@ -153,11 +153,11 @@ G multiexp(typename std::vector<Fr>::const_iterator scalar_start,
            size_t length)
 {
 #ifdef MULTICORE
-    const size_t chunks = omp_get_max_threads(); // to override, set OMP_NUM_THREADS env var or call omp_set_num_threads()
+    const size_t chunks = length; // to override, set OMP_NUM_THREADS env var or call omp_set_num_threads()
 #else
     const size_t chunks = 1;
 #endif
-
+    printf("Chunks: %d \n", chunks);
     return libff::multi_exp_with_mixed_addition<G,
                                                 Fr,
                                                 method>(

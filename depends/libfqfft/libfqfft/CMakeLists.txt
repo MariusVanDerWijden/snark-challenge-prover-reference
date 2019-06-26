@@ -2,6 +2,8 @@ install(
   DIRECTORY "" DESTINATION "include/libfqfft"
   FILES_MATCHING
   PATTERN "*.hpp"
+  PATTERN "*.h"
+  PATTERN "*.cu"
   PATTERN "*.tcc"
   PATTERN "logs" EXCLUDE
   PATTERN "tests" EXCLUDE

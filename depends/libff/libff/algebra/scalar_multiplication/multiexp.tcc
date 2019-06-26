@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cassert>
 #include <type_traits>
+#include "printf.h"
 
 #include <libff/algebra/fields/bigint.hpp>
 #include <libff/algebra/fields/fp_aux.tcc>
@@ -132,11 +133,15 @@ T multi_exp_inner(
 
     for (vec_it = vec_start, scalar_it = scalar_start; vec_it != vec_end; ++vec_it, ++scalar_it)
     {
+        // scalar_it->as_bigint().print();
+        // vec_it->print();
         bigint<FieldT::num_limbs> scalar_bigint = scalar_it->as_bigint();
         result = result + opt_window_wnaf_exp(*vec_it, scalar_bigint, scalar_bigint.num_bits());
     }
     assert(scalar_it == scalar_end);
-
+    // printf("Result: \n");
+    // result.print();
+    // assert(!"adsf");
     return result;
 }
 
@@ -300,6 +305,7 @@ T multi_exp_inner(
     {
         return (*scalar_start)*(*vec_start);
     }
+    printf("asdf");
 
     std::vector<ordered_exponent<n> > opt_q;
     const size_t vec_len = scalar_end - scalar_start;

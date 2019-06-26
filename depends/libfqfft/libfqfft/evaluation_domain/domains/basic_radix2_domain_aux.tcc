@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <vector>
+#include "printf.h"
+#include "cuda/fft_kernel.h"
 
 #ifdef MULTICORE
 #include <omp.h>
@@ -315,6 +317,7 @@ void _basic_parallel_radix2_FFT(std::vector<FieldT> &a, const FieldT &omega)
     else
     {
         _basic_parallel_radix2_FFT_inner(a, omega, log_cpus);
+        //best_fft<FieldT>(a, omega);
     }
 }
 

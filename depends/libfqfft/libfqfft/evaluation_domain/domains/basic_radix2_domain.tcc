@@ -17,6 +17,7 @@
 #include <libff/algebra/fields/field_utils.hpp>
 #include <libff/common/double.hpp>
 #include <libff/common/utils.hpp>
+#include "printf.h"
 
 #include <libfqfft/evaluation_domain/domains/basic_radix2_domain_aux.hpp>
 
@@ -63,7 +64,7 @@ template<typename FieldT>
 void basic_radix2_domain<FieldT>::FFT(std::vector<FieldT> &a)
 {
     if (a.size() != this->m) throw DomainSizeException("basic_radix2: expected a.size() == this->m");
-
+    printf("FFT");
     _basic_radix2_FFT(a, omega);
 }
 
@@ -71,7 +72,7 @@ template<typename FieldT>
 void basic_radix2_domain<FieldT>::iFFT(std::vector<FieldT> &a)
 {
     if (a.size() != this->m) throw DomainSizeException("basic_radix2: expected a.size() == this->m");
-
+    printf("IFFT");
     _basic_radix2_FFT(a, omega.inverse());
 
     const FieldT sconst = FieldT(a.size()).inverse();

@@ -1,0 +1,28 @@
+/*****************************************************************************
+ Implementation of Fast Fourier Transformation on Finite Elements
+ *****************************************************************************
+ * @author     Marius van der Wijden
+ * Copyright [2019] [Marius van der Wijden]
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *****************************************************************************/
+
+#pragma once 
+#include <vector>
+
+#ifdef __cplusplus
+
+template<typename T>
+void best_fft(std::vector<T> &v, const T &omg);
+	//void best_fft (FieldT *a, size_t _size, const FieldT &omg);
+
+#endif
