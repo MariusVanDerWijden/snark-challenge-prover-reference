@@ -221,8 +221,13 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v; -lineinfo; -use_fast_
 list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3)
 
 cuda_add_library (
+    device_multiplication STATIC
+    device_multiplication.cu
+)
+
+add_library (
     prover_reference_functions STATIC
-    prover_reference_functions.cu
+    prover_reference_functions.cpp
     prover_reference_include/prover_reference_functions.hpp
 )
 
@@ -230,7 +235,7 @@ target_compile_features(prover_reference_functions PUBLIC cxx_std_11)
 
 target_link_libraries (
     prover_reference_functions
-
+    device_multiplication
     snark
 )
 

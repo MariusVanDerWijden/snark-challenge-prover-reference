@@ -36,7 +36,7 @@ namespace fields{
 
 using size_t = decltype(sizeof 1ll);
 
-cu_fun bool operator==(const Field& lhs, const Field& rhs)
+cu_fun bool operator==(const Scalar& lhs, const Scalar& rhs)
 {
     for(size_t i = 0; i < SIZE; i++)
         if(lhs.im_rep[i] != rhs.im_rep[i])
@@ -45,7 +45,7 @@ cu_fun bool operator==(const Field& lhs, const Field& rhs)
 }
 
 //Returns true iff this element is zero
-cu_fun bool is_zero(const Field & fld)
+cu_fun bool is_zero(const Scalar & fld)
 {
     for(size_t i = 0; i < SIZE; i++)
         if(fld.im_rep[i] != 0)
@@ -53,7 +53,7 @@ cu_fun bool is_zero(const Field & fld)
     return true;
 }
 
-cu_fun void set_mod(const Field& f)
+cu_fun void set_mod(const Scalar& f)
 {
     for(size_t i = 0; i < SIZE; i++)
         _mod[i] = f.im_rep[i];
@@ -168,7 +168,7 @@ const uint64_t m_prime)
 }
 
 //Adds two elements
-cu_fun void add(Field & fld1, const Field & fld2)
+cu_fun void add(Scalar & fld1, const Scalar & fld2)
 {
     bool carry = add(fld1.im_rep, SIZE, fld2.im_rep, SIZE);
     if(carry || less(_mod, SIZE, fld1.im_rep, SIZE))
@@ -176,7 +176,7 @@ cu_fun void add(Field & fld1, const Field & fld2)
 }
 
 //Subtract element two from element one
-cu_fun void subtract(Field & fld1, const Field & fld2)
+cu_fun void subtract(Scalar & fld1, const Scalar & fld2)
 {
     bool carry = false;
     if(less(fld1.im_rep, SIZE, fld2.im_rep, SIZE))
@@ -185,7 +185,7 @@ cu_fun void subtract(Field & fld1, const Field & fld2)
 }
 
 //Multiply two elements
-cu_fun void mul(Field & fld1, const Field & fld2)
+cu_fun void mul(Scalar & fld1, const Scalar & fld2)
 {
     uint32_t tmp[SIZE * 2];
     memset(tmp, 0, (SIZE * 2) * sizeof(uint32_t));

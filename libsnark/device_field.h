@@ -43,49 +43,60 @@ __constant__
 #endif
 uint32_t _mod [SIZE];
 
-struct Field {
+struct Scalar {
+	//Intermediate representation
 	uint32_t im_rep [SIZE] = {0};
     //Returns zero element
-    cu_fun static Field zero()
+    cu_fun static Scalar zero()
     {
-        Field res;
+     Scalar res;
         for(size_t i = 0; i < SIZE; i++)
             res.im_rep[i] = 0;
         return res;
     }
 
     //Returns one element
-    cu_fun static Field one()
+    cu_fun static Scalar one()
     {
-        Field res;
+     Scalar res;
             res.im_rep[SIZE - 1] = 1;
         return res;
     }
     //Default constructor
-    Field() = default;
+    Scalar() = default;
+    //Construct from value
+    cu_fun Scalar(const uint32_t value)
+    {
+        im_rep[SIZE - 1] = value;
+    }
 
-    cu_fun Field(const uint32_t* value)
+    cu_fun Scalar(const uint32_t* value)
     {
         for(size_t i = 0; i < SIZE; i++)
             im_rep[i] = value[i];
     }
 };
 
+struct FieldElement {
+    Scalar x;
+    Scalar y;
+};
+
 #ifdef DEBUG
-    void printField(fields::Field f)
+    void prin Scalars: Scalar f)
     {
         for(size_t i = 0; i < SIZE; i++)
             printf("%u, ", f.im_rep[i]);
         printf("\n");
     }
 
-    void testEquality(fields::Field f1, fields::Field f2)
+    void testEquality Scalars: Scalar f1, Scalars: Scalar f2)
     {
         for(size_t i = 0; i < SIZE; i++)
             if(f1.im_rep[i] != f2.im_rep[i])
             {
-                printField(f1);
-                printField(f2);
+                prin Scalar(f1);
+                prin Scalar(f2);
                 assert(!"missmatch");
             }
     }
