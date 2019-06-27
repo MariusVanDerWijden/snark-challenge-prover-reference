@@ -77,10 +77,33 @@ struct Scalar {
     }
 };
 
+cu_fun void add(Scalar & fld1, const Scalar & fld2);
+cu_fun void mul(Scalar & fld1, const Scalar & fld2);
+
 struct FieldElement {
     Scalar x;
     Scalar y;
+
+    cu_fun FieldElement& operator+=(const FieldElement& rhs){
+        add(this->x, rhs.x);
+        add(this->y, rhs.y);
+        return *this;
+    }
+
+    cu_fun FieldElement& operator+=(const Scalar& rhs){
+        add(this->x, rhs);
+        add(this->y, rhs);
+        return *this;
+    }
+
+    cu_fun FieldElement& operator*=(const Scalar& rhs){
+        mul(this->x, rhs);
+        mul(this->y, rhs);
+        return *this;
+    }
 };
+
+
 
 #ifdef DEBUG
     void prin Scalars: Scalar f)

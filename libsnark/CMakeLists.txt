@@ -1,3 +1,9 @@
+set(CMAKE_C_COMPILER "/usr/bin/gcc-7")
+set(CMAKE_CXX_COMPILER "/usr/bin/g++-7")
+SET (CMAKE_C_COMPILER_WORKS 1)
+SET (CMAKE_CXX_COMPILER_WORKS 1)
+SET (CMAKE_CUDA_COMPILER_WORKS 1)
+
 set(SNARK_EXTRALIBS)
 find_package(OpenSSL)
 if(${CURVE} STREQUAL "BN128")
@@ -213,18 +219,6 @@ target_link_libraries(
   snark
 )
 
-enable_language(CUDA)
-
-find_package(CUDA REQUIRED)
-
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v; -lineinfo; -use_fast_math)
-list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3)
-
-cuda_add_library (
-    device_multiplication STATIC
-    device_multiplication.cu
-)
-
 add_library (
     prover_reference_functions STATIC
     prover_reference_functions.cpp
@@ -235,7 +229,7 @@ target_compile_features(prover_reference_functions PUBLIC cxx_std_11)
 
 target_link_libraries (
     prover_reference_functions
-    device_multiplication
+    libcuda
     snark
 )
 

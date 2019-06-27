@@ -65,7 +65,7 @@ cu_fun bool less(const uint32_t* element1, const size_t e1_size, const uint32_t*
     assert(e1_size == e2_size);
     
     #pragma unroll
-    for(size_t i = 0; i < e2_size; i++)
+    for(size_t i = 0; i < SIZE; i++)
         if(element1[i] > element2[i])
             return false;
         else if(element1[i] < element2[i])
@@ -107,8 +107,7 @@ cu_fun void subtract(uint32_t* element1, const size_t e1_size, bool carry, const
 
 cu_fun void ciosMontgomeryMultiply(uint32_t * result, 
 const uint32_t* a, const size_t a_size, 
-const uint32_t* b, const size_t b_size, 
-const uint32_t* n, const size_t n_size,
+const uint32_t* b, const uint32_t* n,
 const uint64_t m_prime)
 {
     uint64_t temp;
@@ -190,7 +189,7 @@ cu_fun void mul(Scalar & fld1, const Scalar & fld2)
     uint32_t tmp[SIZE * 2];
     memset(tmp, 0, (SIZE * 2) * sizeof(uint32_t));
     
-    ciosMontgomeryMultiply(tmp + 1, fld1.im_rep, SIZE, fld2.im_rep, SIZE, _mod, SIZE, 4294967296L);
+    ciosMontgomeryMultiply(tmp + 1, fld1.im_rep, SIZE, fld2.im_rep, _mod, 4294967296L);
     for(size_t i = 0; i < SIZE; i++)
         fld1.im_rep[i] = tmp[i];
 }

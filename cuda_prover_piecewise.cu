@@ -2,18 +2,6 @@
 
 #include <prover_reference_functions.hpp>
 
-// cuda-fixnum includes
-
-#include <array/fixnum_array.h>
-#include <fixnum/warp_fixnum.cu>
-#include <functions/modexp.cu>
-#include <functions/multi_modexp.cu>
-#include <modnum/modnum_monty_cios.cu>
-#include <modnum/modnum_monty_redc.cu>
-
-// cuda-fixnum/main.cu has some example code. this declaration lets us run it.
-int do_fixnum_example(const char *inputs_file, const char *outputs_file);
-
 // This is where all the FFTs happen
 
 // template over the bundle of types and functions.
@@ -121,7 +109,7 @@ int main(int argc, char **argv) {
       }
     }
   } else if (device == "GPU") {
-    do_fixnum_example(argv[4], argv[5]);
+    run_prover<mnt4753_libsnark>(params_path, input_path, output_path);
   }
 
   return 0;

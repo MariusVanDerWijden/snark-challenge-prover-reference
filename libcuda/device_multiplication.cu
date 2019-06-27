@@ -1,3 +1,21 @@
+/*****************************************************************************
+ Implementation of multiplication + exponentiation on Finite Elements
+ *****************************************************************************
+ * @author     Marius van der Wijden
+ * Copyright [2019] [Marius van der Wijden]
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *****************************************************************************/
+ 
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -20,35 +38,38 @@ template<typename T>
 __device__ T out;
 
 template <typename T, unsigned int blockSize>
-__device__ void warpReduce(volatile T *sdata, unsigned int tid) {
-    if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
-    if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
-    if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
-    if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
-    if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
-    if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+__device__ void warpReduce(T *tmpData, unsigned int tid) {
+    if (blockSize >= 64) tmpData[tid] += tmpData[tid + 32];
+    if (blockSize >= 32) tmpData[tid] += tmpData[tid + 16];
+    if (blockSize >= 16) tmpData[tid] += tmpData[tid + 8];
+    if (blockSize >= 8) tmpData[tid] += tmpData[tid + 4];
+    if (blockSize >= 4) tmpData[tid] += tmpData[tid + 2];
+    if (blockSize >= 2) tmpData[tid] += tmpData[tid + 1];
 }
 
 template <typename T, typename FieldT, unsigned int blockSize>
 __global__ void device_multi_exp_inner(T *vec, FieldT *scalar, size_t field_size) {
-    extern __shared__ T sdata[];
+    extern __shared__ T tmpData[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x*(blockSize*2) + tid;
     unsigned int gridSize = blockSize*2*gridDim.x;
 
-    sdata[tid] = zero<T>;
+    tmpData[tid] = zero<T>;
     while (i < field_size) { 
-        sdata[tid] += scalar[i] * vec[i]; i += gridSize; }
+        vec[i] *= scalar[i];
+        tmpData[tid] += vec[i]; 
+        i += gridSize; 
+    }
     __syncthreads();
     
-    if (blockSize >= 2048) { if (tid < 1024) { sdata[tid] += sdata[tid + 1024]; } __syncthreads(); }
-    if (blockSize >= 1024) { if (tid < 512) { sdata[tid] += sdata[tid + 512]; } __syncthreads(); }
-    if (blockSize >= 512) { if (tid < 256) { sdata[tid] += sdata[tid + 256]; } __syncthreads(); }
-    if (blockSize >= 256) { if (tid < 128) { sdata[tid] += sdata[tid + 128]; } __syncthreads(); }
-    if (blockSize >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
+    if (blockSize >= 2048) { if (tid < 1024) { tmpData[tid] += tmpData[tid + 1024]; } __syncthreads(); }
+    if (blockSize >= 1024) { if (tid < 512) { tmpData[tid] += tmpData[tid + 512]; } __syncthreads(); }
+    if (blockSize >= 512) { if (tid < 256) { tmpData[tid] += tmpData[tid + 256]; } __syncthreads(); }
+    if (blockSize >= 256) { if (tid < 128) { tmpData[tid] += tmpData[tid + 128]; } __syncthreads(); }
+    if (blockSize >= 128) { if (tid < 64) { tmpData[tid] += tmpData[tid + 64]; } __syncthreads(); }
 
-    if (tid < 32) warpReduce<T,blockSize>(sdata, tid);
-    if (tid == 0) out<T> = sdata[0];
+    if (tid < 32) warpReduce<T,blockSize>(tmpData, tid);
+    if (tid == 0) out<T> = tmpData[0];
 }
 
 template<typename T, typename FieldT>
@@ -97,12 +118,12 @@ T cuda_multi_exp_inner(
     cudaFree(d_scalar);
     return result;
 }
-
+/*
 template int cuda_multi_exp_inner<int,uint>(
     typename std::vector<int>::const_iterator vec_start,
     typename std::vector<int>::const_iterator vec_end,
     typename std::vector<uint>::const_iterator scalar_start,
-    typename std::vector<uint>::const_iterator scalar_end);
+    typename std::vector<uint>::const_iterator scalar_end);*/
 
 template fields::FieldElement cuda_multi_exp_inner<fields::FieldElement,fields::Scalar>(
     typename std::vector<fields::FieldElement>::const_iterator vec_start,
