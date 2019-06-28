@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *****************************************************************************/
- 
+
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -72,34 +72,54 @@ __global__ void device_multi_exp_inner(T *vec, FieldT *scalar, size_t field_size
     if (tid == 0) out<T> = tmpData[0];
 }
 
-template<typename T, typename FieldT>
-T cuda_multi_exp_inner(
+template<typename T, typename FieldT> 
+void toGPUField (
     typename std::vector<T>::const_iterator vec_start,
     typename std::vector<T>::const_iterator vec_end,
     typename std::vector<FieldT>::const_iterator scalar_start,
-    typename std::vector<FieldT>::const_iterator scalar_end)
+    typename std::vector<FieldT>::const_iterator scalar_end, 
+    fields::FieldElement *d_vec,
+    fields::Scalar *d_scalar) 
 {
-    printf("Enter custom gpu code");
-    T *d_vec;
-    FieldT *d_scalar;
-    size_t vec_size = (vec_end - vec_start) * sizeof(T);
-    size_t scalar_size = (scalar_end - scalar_start) * sizeof(FieldT);
+    size_t vec_size = (vec_end - vec_start);
+    size_t scalar_size = (scalar_end - scalar_start);
 
     cudaMalloc((void **)&d_vec, vec_size);
     cudaMalloc((void **)&d_scalar, scalar_size);
-	
-    cudaMemcpy(d_vec, &vec_start, vec_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_scalar, &scalar_start, scalar_size, cudaMemcpyHostToDevice);
-    uint smemSize = vec_size / 2;	
 
+    fields::FieldElement tmp_vec[vec_size];
+    fields::Scalar tmp_scalar[scalar_size];
+#ifdef MULTICORE
+    #pragma omp parallel for
+#endif
+    for (uint i = 0; i < vec_size; i++) {
+#ifndef BINARY_OUTPUT
+#define BINARY_OUTPUT
+#endif
+        FieldElement f;
+        f.x << vec_start[i]->X().as_bigint();
+        f.y << vec_start[i]->Y().as_bigint();
+        tmp_vec[i] = f;
+
+        Scalar s;
+        s << scalar_start[i]->as_bigint();
+        tmp_scalar[i] = s;
+    }
+    cudaMemcpy(d_vec, &tmp_vec, vec_size * sizeof(fields::FieldElement), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_scalar, &tmp_scalar, scalar_size * sizeof(fields::Scalar), cudaMemcpyHostToDevice);
+}
+
+fields::FieldElement startKernel(fields::FieldElement *d_vec, fields::Scalar *d_scalar, int length)
+{
+    uint smemSize = length / 2;
     dim3 dimGrid (GRID_SIZE, GRID_SIZE);
     dim3 dimBlock (BLOCK_SIZE, BLOCK_SIZE);
     uint threads = dimGrid.x * dimGrid.y;
     switch (threads)
     {
         case 1024:
-        device_multi_exp_inner<T,FieldT,2048>
-          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, vec_size); break;
+        device_multi_exp_inner<fields::FieldElement,fields::Scalar,2048>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, length); break;
         /*
         case 2048:
         device_multi_exp_inner<fields::Field,fields::Field,1024>
@@ -110,23 +130,30 @@ T cuda_multi_exp_inner(
         */
     }
 
-    T* res; T result;
-    cudaGetSymbolAddress((void**) &res, out<T>);
-    cudaMemcpy(&result, res, sizeof(T), cudaMemcpyDeviceToHost);
+    fields::FieldElement* res; fields::FieldElement result;
+    cudaGetSymbolAddress((void**) &res, out<fields::FieldElement>);
+    cudaMemcpy(&result, res, sizeof(fields::FieldElement), cudaMemcpyDeviceToHost);
 
     cudaFree(d_vec);
     cudaFree(d_scalar);
     return result;
 }
-/*
-template int cuda_multi_exp_inner<int,uint>(
-    typename std::vector<int>::const_iterator vec_start,
-    typename std::vector<int>::const_iterator vec_end,
-    typename std::vector<uint>::const_iterator scalar_start,
-    typename std::vector<uint>::const_iterator scalar_end);*/
 
-template fields::FieldElement cuda_multi_exp_inner<fields::FieldElement,fields::Scalar>(
-    typename std::vector<fields::FieldElement>::const_iterator vec_start,
-    typename std::vector<fields::FieldElement>::const_iterator vec_end,
-    typename std::vector<fields::Scalar>::const_iterator scalar_start,
-    typename std::vector<fields::Scalar>::const_iterator scalar_end);
+template<typename T, typename FieldT>
+T cuda_multi_exp_inner(
+    typename std::vector<T>::const_iterator vec_start,
+    typename std::vector<T>::const_iterator vec_end,
+    typename std::vector<FieldT>::const_iterator scalar_start,
+    typename std::vector<FieldT>::const_iterator scalar_end)
+{
+    printf("Enter custom gpu code");
+
+    fields::FieldElement *d_vec;
+    fields::Scalar  *d_scalar;
+
+    toGPUField(vec_start, vec_end, scalar_start, scalar_end, d_vec, d_scalar);
+	
+    fields::FieldElement res = startKernel(d_vec, d_scalar, (vec_end - vec_start));
+
+    return NULL;
+}

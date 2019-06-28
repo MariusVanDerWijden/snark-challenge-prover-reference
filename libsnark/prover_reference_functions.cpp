@@ -84,6 +84,7 @@ T local_multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator ve
 
     
     auto tmp = acc + cuda_multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end());
+    //auto tmp = acc + multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end());
 
     leave_block("Process scalar vector");
 

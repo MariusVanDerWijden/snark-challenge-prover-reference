@@ -32,6 +32,8 @@
 #include <cstring>
 #endif
 
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+
 namespace fields{
 
 using size_t = decltype(sizeof 1ll);
@@ -42,6 +44,35 @@ cu_fun bool operator==(const Scalar& lhs, const Scalar& rhs)
         if(lhs.im_rep[i] != rhs.im_rep[i])
             return false;
     return true;
+}
+
+cu_fun uint32_t clz(const uint32_t* element, const size_t e_size)
+{
+    uint32_t lz = 0;
+    uint32_t tmp;
+    for(size_t i = 0; i < e_size; i++)
+    {
+        if(element[i] == 0)
+            tmp = 32;
+        else
+            tmp = __builtin_clz(element[i]);
+        lz += tmp;
+        if(tmp < 32)
+            break;
+    }
+    return lz;
+}
+
+cu_fun long idxOfLNZ(Scalar& fld)
+{
+    return SIZE - clz(fld.im_rep, SIZE);
+}
+
+cu_fun bool hasBitAt(Scalar& fld, long index)
+{
+    long idx1 = index % SIZE;
+    long idx2 = index / SIZE;
+    return CHECK_BIT(fld.im_rep[idx2], idx1) != 0;  
 }
 
 //Returns true iff this element is zero

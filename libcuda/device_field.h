@@ -44,12 +44,17 @@ __constant__
 uint32_t _mod [SIZE];
 
 struct Scalar {
+
+    cu_fun void add(Scalar & fld1, const Scalar & fld2);
+    cu_fun void mul(Scalar & fld1, const Scalar & fld2);
+    cu_fun void substract(Scalar & fld1, const Scalar & fld2); 
+
 	//Intermediate representation
 	uint32_t im_rep [SIZE] = {0};
     //Returns zero element
     cu_fun static Scalar zero()
     {
-     Scalar res;
+        Scalar res;
         for(size_t i = 0; i < SIZE; i++)
             res.im_rep[i] = 0;
         return res;
@@ -75,54 +80,183 @@ struct Scalar {
         for(size_t i = 0; i < SIZE; i++)
             im_rep[i] = value[i];
     }
-};
 
-cu_fun void add(Scalar & fld1, const Scalar & fld2);
-cu_fun void mul(Scalar & fld1, const Scalar & fld2);
-
-struct FieldElement {
-    Scalar x;
-    Scalar y;
-
-    cu_fun FieldElement& operator+=(const FieldElement& rhs){
-        add(this->x, rhs.x);
-        add(this->y, rhs.y);
-        return *this;
+    cu_fun Scalar operator*(const Scalar& rhs) const
+    {
+        Scalar s;
+        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
+        mul(s, rhs);
+        return s;
     }
 
-    cu_fun FieldElement& operator+=(const Scalar& rhs){
-        add(this->x, rhs);
-        add(this->y, rhs);
-        return *this;
+    cu_fun Scalar operator+(const Scalar& rhs) const
+    {
+        Scalar s;
+        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
+        add(s, rhs);
+        return s;
     }
 
-    cu_fun FieldElement& operator*=(const Scalar& rhs){
-        mul(this->x, rhs);
-        mul(this->y, rhs);
-        return *this;
+    cu_fun Scalar operator-(const Scalar& rhs) const
+    {
+        Scalar s;
+        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
+        substract(s, rhs);
+        return s;
     }
-};
 
-
-
+    cu_fun Scalar operator-() const
+    {
+        Scalar s;
+        std::copy(_mod, _mod + SIZE, s.im_rep);
+        substract(s, *this);
+        return s;
+    }
 #ifdef DEBUG
-    void prin Scalars: Scalar f)
+    void printScalars(Scalar f)
     {
         for(size_t i = 0; i < SIZE; i++)
             printf("%u, ", f.im_rep[i]);
         printf("\n");
     }
 
-    void testEquality Scalars: Scalar f1, Scalars: Scalar f2)
+    void testEquality(Scalar f1, Scalar f2)
     {
         for(size_t i = 0; i < SIZE; i++)
             if(f1.im_rep[i] != f2.im_rep[i])
             {
-                prin Scalar(f1);
-                prin Scalar(f2);
+                printScalar(f1);
+                printScalar(f2);
                 assert(!"missmatch");
             }
     }
 #endif
+};
+
+cu_fun long idxOfLNZ(Scalar& fld);
+cu_fun bool hasBitAt(Scalar& fld, long index);
+
+struct fp2 {
+    Scalar x;
+    Scalar y;
+    static Scalar non_residue;
+
+    fp2 () = default;
+
+    cu_fun static fp2 zero()
+    {
+        fp2 res;
+        res.x = Scalar::zero();
+        res.y = Scalar::zero();
+        return res;
+    }
+
+    cu_fun fp2(Scalar _x, Scalar _y)
+    {
+        x = _x;
+        y = _y;
+    }
+
+    cu_fun fp2 operator*(const Scalar& rhs) const
+    {
+        return fp2(this->x * rhs, this->y * rhs);
+    }
+
+    cu_fun fp2 operator*(const fp2& rhs) const
+    {
+        const Scalar &A = rhs.x;
+        const Scalar &B = rhs.y;
+        const Scalar &a = this->x;
+        const Scalar &b = this->y;
+        const Scalar aA = a * A;
+        const Scalar bB = b * B;
+        return fp2(aA + non_residue * bB, ((a+b) * (A+B) - aA) - bB);
+    }
+
+    cu_fun fp2 operator-(const fp2& rhs) const
+    {
+        return fp2(this->x - rhs.x, this->y - rhs.y);
+    }
+
+    cu_fun fp2 operator-() const
+    {
+        return fp2(-this->x, -this->y);
+    }
+
+    cu_fun fp2 operator+(const fp2& rhs) const
+    {
+        return fp2(this->x + rhs.x, this->y + rhs.y);
+    }
+};
+
+struct mnt4753_G2 {
+    fp2 x;
+    fp2 y;
+    fp2 z;
+
+    mnt4753_G2() = default;
+
+    cu_fun mnt4753_G2(fp2 _x, fp2 _y, fp2 _z)
+    {
+        x = _x;
+        y = _y;
+        z = _z;
+    }
+
+    cu_fun static mnt4753_G2 zero()
+    {
+        mnt4753_G2 tmp;
+        tmp.x = fp2::zero();
+        tmp.y = fp2::zero();
+        tmp.z = fp2::zero();
+        return tmp;
+    }
+
+    cu_fun mnt4753_G2 operator+(const mnt4753_G2& other) const
+    {
+        const fp2 X1Z2 = this->x * other.z;
+        const fp2 Y1Z2 = this->y * other.z;
+        const fp2 Z1Z2 = this->z * other.z;
+        const fp2 u = other.y * this->z - Y1Z2;
+        const fp2 uu = u * u;
+        const fp2 v = other.x * this->z - X1Z2;
+        const fp2 vv = v * v;
+        const fp2 vvv = vv * v;
+        const fp2 R = vv * X1Z2;
+        const fp2 A = uu * Z1Z2 - (vvv + R + R);
+        const fp2 X3 = v * A;
+        const fp2 Y3 = u * (R-A) - vvv * Y1Z2;
+        const fp2 Z3 = vvv * Z1Z2;
+        return mnt4753_G2(X3, Y3, Z3);
+    }
+
+    cu_fun mnt4753_G2 operator-() const
+    {
+        return mnt4753_G2(this->x, -(this->y), this->z);
+    }
+
+    cu_fun mnt4753_G2 operator-(const mnt4753_G2 &other) const
+    {
+        return (*this) + (-other);
+    }
+
+    cu_fun mnt4753_G2 operator*(const Scalar &other) const
+    {
+        mnt4753_G2 result = zero();
+
+        bool one = false;
+        for (long i = idxOfLNZ(other) - 1; i >= 0; --i)
+        {
+            if (one)
+                result = result + result;
+            if (hasBitAt(other,i))
+            {
+                one = true;
+                result = result + *this;
+            }
+        }
+        return result;
+    }
+};
 
 }
