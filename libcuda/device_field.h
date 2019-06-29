@@ -45,9 +45,9 @@ uint32_t _mod [SIZE];
 
 struct Scalar {
 
-    cu_fun void add(Scalar & fld1, const Scalar & fld2);
-    cu_fun void mul(Scalar & fld1, const Scalar & fld2);
-    cu_fun void substract(Scalar & fld1, const Scalar & fld2); 
+    cu_fun void add(Scalar & fld1, const Scalar & fld2) const;
+    cu_fun void mul(Scalar & fld1, const Scalar & fld2) const;
+    cu_fun void subtract(Scalar & fld1, const Scalar & fld2) const;
 
 	//Intermediate representation
 	uint32_t im_rep [SIZE] = {0};
@@ -63,8 +63,8 @@ struct Scalar {
     //Returns one element
     cu_fun static Scalar one()
     {
-     Scalar res;
-            res.im_rep[SIZE - 1] = 1;
+        Scalar res;
+        res.im_rep[SIZE - 1] = 1;
         return res;
     }
     //Default constructor
@@ -84,7 +84,8 @@ struct Scalar {
     cu_fun Scalar operator*(const Scalar& rhs) const
     {
         Scalar s;
-        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
+        for(size_t i = 0; i < SIZE; i++)
+            s.im_rep[i] = this->im_rep[i];
         mul(s, rhs);
         return s;
     }
@@ -92,7 +93,8 @@ struct Scalar {
     cu_fun Scalar operator+(const Scalar& rhs) const
     {
         Scalar s;
-        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
+        for(size_t i = 0; i < SIZE; i++)
+            s.im_rep[i] = this->im_rep[i];
         add(s, rhs);
         return s;
     }
@@ -100,16 +102,18 @@ struct Scalar {
     cu_fun Scalar operator-(const Scalar& rhs) const
     {
         Scalar s;
-        std::copy(this->im_rep, this->im_rep + SIZE, s.im_rep);
-        substract(s, rhs);
+        for(size_t i = 0; i < SIZE; i++)
+            s.im_rep[i] = this->im_rep[i];
+        subtract(s, rhs);
         return s;
     }
 
     cu_fun Scalar operator-() const
     {
         Scalar s;
-        std::copy(_mod, _mod + SIZE, s.im_rep);
-        substract(s, *this);
+        for(size_t i = 0; i < SIZE; i++)
+            s.im_rep[i] = this->im_rep[i];
+        subtract(s, *this);
         return s;
     }
 #ifdef DEBUG
@@ -133,13 +137,13 @@ struct Scalar {
 #endif
 };
 
-cu_fun long idxOfLNZ(Scalar& fld);
-cu_fun bool hasBitAt(Scalar& fld, long index);
+cu_fun long idxOfLNZ(const Scalar& fld);
+cu_fun bool hasBitAt(const Scalar& fld, long index);
 
 struct fp2 {
     Scalar x;
     Scalar y;
-    static Scalar non_residue;
+    const Scalar non_residue = Scalar(13); //13 for mnt4753 and 11 for mnt6753
 
     fp2 () = default;
 
@@ -187,6 +191,12 @@ struct fp2 {
     {
         return fp2(this->x + rhs.x, this->y + rhs.y);
     }
+
+    cu_fun void operator=(const fp2& rhs)
+    {
+        this->x = rhs.x;
+        this->y = rhs.y;
+    }
 };
 
 struct mnt4753_G2 {
@@ -194,7 +204,11 @@ struct mnt4753_G2 {
     fp2 y;
     fp2 z;
 
-    mnt4753_G2() = default;
+    cu_fun mnt4753_G2() {
+        x = fp2::zero();
+        y = fp2::zero();
+        z = fp2::zero();
+    }
 
     cu_fun mnt4753_G2(fp2 _x, fp2 _y, fp2 _z)
     {
@@ -205,11 +219,7 @@ struct mnt4753_G2 {
 
     cu_fun static mnt4753_G2 zero()
     {
-        mnt4753_G2 tmp;
-        tmp.x = fp2::zero();
-        tmp.y = fp2::zero();
-        tmp.z = fp2::zero();
-        return tmp;
+        return mnt4753_G2(fp2::zero(), fp2::zero(), fp2::zero());
     }
 
     cu_fun mnt4753_G2 operator+(const mnt4753_G2& other) const
@@ -228,6 +238,11 @@ struct mnt4753_G2 {
         const fp2 Y3 = u * (R-A) - vvv * Y1Z2;
         const fp2 Z3 = vvv * Z1Z2;
         return mnt4753_G2(X3, Y3, Z3);
+    }
+
+    cu_fun void operator+=(const mnt4753_G2& other)
+    {
+        *this = *this + other;
     }
 
     cu_fun mnt4753_G2 operator-() const

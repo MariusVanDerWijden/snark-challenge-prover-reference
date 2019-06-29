@@ -23,6 +23,12 @@
 
 #define SIZE (256 / 32)
 
+#if defined(__CUDA_ARCH__)
+#define _clz __clz
+#else
+#define _clz __builtin_clz
+#endif
+
 #ifndef DEBUG
 #define cu_fun __host__ __device__ 
 #else
@@ -55,7 +61,7 @@ cu_fun uint32_t clz(const uint32_t* element, const size_t e_size)
         if(element[i] == 0)
             tmp = 32;
         else
-            tmp = __builtin_clz(element[i]);
+            tmp = _clz(element[i]);
         lz += tmp;
         if(tmp < 32)
             break;
@@ -63,12 +69,12 @@ cu_fun uint32_t clz(const uint32_t* element, const size_t e_size)
     return lz;
 }
 
-cu_fun long idxOfLNZ(Scalar& fld)
+cu_fun long idxOfLNZ(const Scalar& fld)
 {
     return SIZE - clz(fld.im_rep, SIZE);
 }
 
-cu_fun bool hasBitAt(Scalar& fld, long index)
+cu_fun bool hasBitAt(const Scalar& fld, long index)
 {
     long idx1 = index % SIZE;
     long idx2 = index / SIZE;
@@ -105,7 +111,7 @@ cu_fun bool less(const uint32_t* element1, const size_t e1_size, const uint32_t*
 }
 
 // Returns the carry, true if there was a carry, false otherwise
-cu_fun bool add(uint32_t* element1, const size_t e1_size, const uint32_t* element2, const size_t e2_size)
+cu_fun bool _add(uint32_t* element1, const size_t e1_size, const uint32_t* element2, const size_t e2_size)
 {
     assert(e1_size == e2_size);
     bool carry = false;
@@ -120,7 +126,7 @@ cu_fun bool add(uint32_t* element1, const size_t e1_size, const uint32_t* elemen
 }
 
 // Fails if the second number is bigger than the first
-cu_fun void subtract(uint32_t* element1, const size_t e1_size, bool carry, const uint32_t* element2, const size_t e2_size)
+cu_fun void _subtract(uint32_t* element1, const size_t e1_size, bool carry, const uint32_t* element2, const size_t e2_size)
 {
     assert(e1_size == e2_size);
     bool borrow = false;
@@ -198,24 +204,24 @@ const uint64_t m_prime)
 }
 
 //Adds two elements
-cu_fun void add(Scalar & fld1, const Scalar & fld2)
+cu_fun void Scalar::add(Scalar & fld1, const Scalar & fld2) const
 {
-    bool carry = add(fld1.im_rep, SIZE, fld2.im_rep, SIZE);
+    bool carry = _add(fld1.im_rep, SIZE, fld2.im_rep, SIZE);
     if(carry || less(_mod, SIZE, fld1.im_rep, SIZE))
-        subtract(fld1.im_rep, SIZE, false, _mod, SIZE);
+        _subtract(fld1.im_rep, SIZE, false, _mod, SIZE);
 }
 
 //Subtract element two from element one
-cu_fun void subtract(Scalar & fld1, const Scalar & fld2)
+cu_fun void Scalar::subtract(Scalar & fld1, const Scalar & fld2) const
 {
     bool carry = false;
     if(less(fld1.im_rep, SIZE, fld2.im_rep, SIZE))
-        carry = add(fld1.im_rep, SIZE, _mod, SIZE);
-    subtract(fld1.im_rep, SIZE, carry, fld2.im_rep, SIZE);
+        carry = _add(fld1.im_rep, SIZE, _mod, SIZE);
+    _subtract(fld1.im_rep, SIZE, carry, fld2.im_rep, SIZE);
 }
 
 //Multiply two elements
-cu_fun void mul(Scalar & fld1, const Scalar & fld2)
+cu_fun void Scalar::mul(Scalar & fld1, const Scalar & fld2) const
 {
     uint32_t tmp[SIZE * 2];
     memset(tmp, 0, (SIZE * 2) * sizeof(uint32_t));

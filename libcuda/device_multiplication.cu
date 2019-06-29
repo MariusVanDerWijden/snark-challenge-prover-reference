@@ -30,12 +30,7 @@
 #include "device_field_operators.h"
 
 #define GRID_SIZE 32
-#define BLOCK_SIZE 16 
-
-template<typename FieldT> 
-__device__ __constant__ FieldT zero;
-template<typename T>
-__device__ T out;
+#define BLOCK_SIZE 16
 
 template <typename T, unsigned int blockSize>
 __device__ void warpReduce(T *tmpData, unsigned int tid) {
@@ -48,16 +43,15 @@ __device__ void warpReduce(T *tmpData, unsigned int tid) {
 }
 
 template <typename T, typename FieldT, unsigned int blockSize>
-__global__ void device_multi_exp_inner(T *vec, FieldT *scalar, size_t field_size) {
+__global__ void device_multi_exp_inner(T *vec, FieldT *scalar, T *result, size_t field_size) {
     extern __shared__ T tmpData[];
     unsigned int tid = threadIdx.x;
     unsigned int i = blockIdx.x*(blockSize*2) + tid;
     unsigned int gridSize = blockSize*2*gridDim.x;
 
-    tmpData[tid] = zero<T>;
-    while (i < field_size) { 
-        vec[i] *= scalar[i];
-        tmpData[tid] += vec[i]; 
+    tmpData[tid] = T::zero();
+    while (i < field_size) {
+        tmpData[tid] += vec[i] * scalar[i]; 
         i += gridSize; 
     }
     __syncthreads();
@@ -69,7 +63,7 @@ __global__ void device_multi_exp_inner(T *vec, FieldT *scalar, size_t field_size
     if (blockSize >= 128) { if (tid < 64) { tmpData[tid] += tmpData[tid + 64]; } __syncthreads(); }
 
     if (tid < 32) warpReduce<T,blockSize>(tmpData, tid);
-    if (tid == 0) out<T> = tmpData[0];
+    if (tid == 0) *result = tmpData[0];
 }
 
 template<typename T, typename FieldT> 
@@ -78,16 +72,16 @@ void toGPUField (
     typename std::vector<T>::const_iterator vec_end,
     typename std::vector<FieldT>::const_iterator scalar_start,
     typename std::vector<FieldT>::const_iterator scalar_end, 
-    fields::FieldElement *d_vec,
+    fields::mnt4753_G2 *d_vec,
     fields::Scalar *d_scalar) 
 {
     size_t vec_size = (vec_end - vec_start);
     size_t scalar_size = (scalar_end - scalar_start);
 
-    cudaMalloc((void **)&d_vec, vec_size);
-    cudaMalloc((void **)&d_scalar, scalar_size);
+    cudaMalloc((void **)&d_vec, vec_size * sizeof(fields::mnt4753_G2));
+    cudaMalloc((void **)&d_scalar, scalar_size * sizeof(fields::Scalar));
 
-    fields::FieldElement tmp_vec[vec_size];
+    fields::mnt4753_G2 tmp_vec[vec_size];
     fields::Scalar tmp_scalar[scalar_size];
 #ifdef MULTICORE
     #pragma omp parallel for
@@ -96,30 +90,33 @@ void toGPUField (
 #ifndef BINARY_OUTPUT
 #define BINARY_OUTPUT
 #endif
-        FieldElement f;
+        fields::mnt4753_G2 f;
         f.x << vec_start[i]->X().as_bigint();
         f.y << vec_start[i]->Y().as_bigint();
         tmp_vec[i] = f;
 
-        Scalar s;
+        fields::Scalar s;
         s << scalar_start[i]->as_bigint();
         tmp_scalar[i] = s;
     }
-    cudaMemcpy(d_vec, &tmp_vec, vec_size * sizeof(fields::FieldElement), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vec, &tmp_vec, vec_size * sizeof(fields::mnt4753_G2), cudaMemcpyHostToDevice);
     cudaMemcpy(d_scalar, &tmp_scalar, scalar_size * sizeof(fields::Scalar), cudaMemcpyHostToDevice);
 }
 
-fields::FieldElement startKernel(fields::FieldElement *d_vec, fields::Scalar *d_scalar, int length)
+fields::mnt4753_G2 startKernel(fields::mnt4753_G2 *d_vec, fields::Scalar *d_scalar, int length)
 {
     uint smemSize = length / 2;
     dim3 dimGrid (GRID_SIZE, GRID_SIZE);
     dim3 dimBlock (BLOCK_SIZE, BLOCK_SIZE);
     uint threads = dimGrid.x * dimGrid.y;
+
+    fields::mnt4753_G2 *result;
+    cudaMalloc(&result, sizeof(fields::mnt4753_G2));
     switch (threads)
     {
         case 1024:
-        device_multi_exp_inner<fields::FieldElement,fields::Scalar,2048>
-          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, length); break;
+        device_multi_exp_inner<fields::mnt4753_G2,fields::Scalar,2048>
+          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, result, length); break;
         /*
         case 2048:
         device_multi_exp_inner<fields::Field,fields::Field,1024>
@@ -130,13 +127,13 @@ fields::FieldElement startKernel(fields::FieldElement *d_vec, fields::Scalar *d_
         */
     }
 
-    fields::FieldElement* res; fields::FieldElement result;
-    cudaGetSymbolAddress((void**) &res, out<fields::FieldElement>);
-    cudaMemcpy(&result, res, sizeof(fields::FieldElement), cudaMemcpyDeviceToHost);
+    fields::mnt4753_G2 res;
+    cudaMemcpy(&res, result, sizeof(fields::mnt4753_G2), cudaMemcpyDeviceToHost);
 
+    cudaFree(result);
     cudaFree(d_vec);
     cudaFree(d_scalar);
-    return result;
+    return *result;
 }
 
 template<typename T, typename FieldT>
@@ -148,12 +145,12 @@ T cuda_multi_exp_inner(
 {
     printf("Enter custom gpu code");
 
-    fields::FieldElement *d_vec;
+    fields::mnt4753_G2 *d_vec;
     fields::Scalar  *d_scalar;
 
     toGPUField(vec_start, vec_end, scalar_start, scalar_end, d_vec, d_scalar);
 	
-    fields::FieldElement res = startKernel(d_vec, d_scalar, (vec_end - vec_start));
+    fields::mnt4753_G2 res = startKernel(d_vec, d_scalar, (vec_end - vec_start));
 
     return NULL;
 }
