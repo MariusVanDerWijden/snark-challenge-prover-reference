@@ -76,7 +76,7 @@ T local_multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator ve
     print_indent(); printf("* Elements of w remaining: %zu (%0.2f%%)\n", num_other, 100.*num_other/(num_skip+num_add+num_other));
 
     
-    auto tmp = acc + cuda_multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end());
+    auto tmp = acc + cuda::cuda_multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end());
     //auto tmp = acc + multi_exp_inner<T, FieldT>(g.begin(), g.end(), p.begin(), p.end());
 
     leave_block("Process scalar vector");

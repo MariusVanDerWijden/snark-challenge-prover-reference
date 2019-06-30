@@ -90,11 +90,13 @@ cu_fun bool is_zero(const Scalar & fld)
     return true;
 }
 
+#ifdef DEBUG
 cu_fun void set_mod(const Scalar& f)
 {
     for(size_t i = 0; i < SIZE; i++)
         _mod[i] = f.im_rep[i];
 }
+#endif
 
 //Returns true if the first element is less than the second element
 cu_fun bool less(const uint32_t* element1, const size_t e1_size, const uint32_t* element2, const size_t e2_size)

@@ -122,6 +122,18 @@ struct Scalar {
         subtract(s, *this);
         return s;
     }
+
+    cu_fun static Scalar shuffle_down(unsigned mask, Scalar val, unsigned offset)
+    {
+        Scalar result;
+        for(size_t i = 0; i < SIZE; i++)
+#if defined(__CUDA_ARCH__)
+            result.im_rep[i] = __shfl_down_sync(mask, val.im_rep[i], offset);
+#else
+            result.im_rep[i] = val.im_rep[i];
+#endif
+        return result;
+    }
 #ifdef DEBUG
     void printScalars(Scalar f)
     {
@@ -203,6 +215,14 @@ struct fp2 {
         this->x = rhs.x;
         this->y = rhs.y;
     }
+
+    cu_fun static fp2 shuffle_down(unsigned mask, fp2 val, unsigned offset)
+    {
+        fp2 result;
+        result.x = Scalar::shuffle_down(mask, val.x, offset);
+        result.y = Scalar::shuffle_down(mask, val.y, offset);
+        return result;
+    }
 };
 
 struct mnt4753_G2 {
@@ -276,6 +296,15 @@ struct mnt4753_G2 {
                 result = result + *this;
             }
         }
+        return result;
+    }
+
+    cu_fun static mnt4753_G2 shuffle_down(unsigned mask, mnt4753_G2 val, unsigned offset)
+    {
+        mnt4753_G2 result;
+        result.x = fp2::shuffle_down(mask, val.x, offset);
+        result.y = fp2::shuffle_down(mask, val.y, offset);
+        result.z = fp2::shuffle_down(mask, val.z, offset);
         return result;
     }
 };

@@ -9,8 +9,8 @@ enable_language(CUDA)
 
 find_package(CUDA REQUIRED)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};--ptxas-options=-v; -keep; -use_fast_math; -gencode arch=compute_75,code=sm_75)
-list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-Xptxas; -v; -gencode arch=compute_75,code=sm_75; -O3; --ptxas-options=-v; -keep; -use_fast_math; -dc)
+list(APPEND CUDA_NVCC_FLAGS_RELEASE -O3) 
 
 cuda_add_library (
     libcuda STATIC
@@ -21,3 +21,5 @@ cuda_add_library (
 )
 target_include_directories(libcuda PUBLIC ${CUDA_INCLUDE_DIRS})
 set_property(TARGET libcuda PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+
+target_link_libraries(libcuda ${CUDA_LIBRARIES})

@@ -29,41 +29,52 @@
 #include "device_field.h"
 #include "device_field_operators.h"
 
-#define GRID_SIZE 32
-#define BLOCK_SIZE 16
+#define FULL_MASK 0xffffffff
 
-template <typename T, unsigned int blockSize>
-__device__ void warpReduce(T *tmpData, unsigned int tid) {
-    if (blockSize >= 64) tmpData[tid] += tmpData[tid + 32];
-    if (blockSize >= 32) tmpData[tid] += tmpData[tid + 16];
-    if (blockSize >= 16) tmpData[tid] += tmpData[tid + 8];
-    if (blockSize >= 8) tmpData[tid] += tmpData[tid + 4];
-    if (blockSize >= 4) tmpData[tid] += tmpData[tid + 2];
-    if (blockSize >= 2) tmpData[tid] += tmpData[tid + 1];
+namespace cuda {
+
+template <typename T>
+__inline__ __device__
+T warpReduceSum(T val) {
+    for (int offset = warpSize/2; offset > 0; offset /= 2) 
+        val += T::shuffle_down(FULL_MASK, val, offset); 
+    return val;
 }
 
-template <typename T, typename FieldT, unsigned int blockSize>
-__global__ void device_multi_exp_inner(T *vec, FieldT *scalar, T *result, size_t field_size) {
-    extern __shared__ T tmpData[];
-    unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x*(blockSize*2) + tid;
-    unsigned int gridSize = blockSize*2*gridDim.x;
-
-    tmpData[tid] = T::zero();
-    while (i < field_size) {
-        tmpData[tid] += vec[i] * scalar[i]; 
-        i += gridSize; 
-    }
+template <typename T>
+__inline__ __device__
+T blockReduceSum(T val) {
+    static __shared__ T sMem[32];
+    int lane = threadIdx.x % warpSize;
+    int warpId = threadIdx.x / warpSize;
+    val = warpReduceSum(val); 
+    if (lane==0) sMem[warpId]=val;
     __syncthreads();
-    
-    if (blockSize >= 2048) { if (tid < 1024) { tmpData[tid] += tmpData[tid + 1024]; } __syncthreads(); }
-    if (blockSize >= 1024) { if (tid < 512) { tmpData[tid] += tmpData[tid + 512]; } __syncthreads(); }
-    if (blockSize >= 512) { if (tid < 256) { tmpData[tid] += tmpData[tid + 256]; } __syncthreads(); }
-    if (blockSize >= 256) { if (tid < 128) { tmpData[tid] += tmpData[tid + 128]; } __syncthreads(); }
-    if (blockSize >= 128) { if (tid < 64) { tmpData[tid] += tmpData[tid + 64]; } __syncthreads(); }
+    val = (threadIdx.x < blockDim.x / warpSize) ? sMem[lane] : T::zero();
+    if (warpId==0) val = warpReduceSum(val);
+    return val;
+}
 
-    if (tid < 32) warpReduce<T,blockSize>(tmpData, tid);
-    if (tid == 0) *result = tmpData[0];
+template <typename T, typename FieldT>
+__global__ void deviceReduceKernel(T *vec, FieldT *scalar, T *result, int field_size) {
+    T sum = T::zero();
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < field_size; i += blockDim.x * gridDim.x) {       
+        sum += vec[i] * scalar[i];
+    }
+    sum = blockReduceSum(sum);
+    if (threadIdx.x==0)
+        result[blockIdx.x] = sum;
+}
+
+template <typename T>
+__global__ void deviceReduceKernelSecond(T *resIn, T *resOut, int field_size) {
+    T sum = T::zero();
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < field_size; i += blockDim.x * gridDim.x) {       
+        sum += resIn[i];
+    }
+    sum = blockReduceSum(sum);
+    if (threadIdx.x==0)
+        resOut[0] = sum;
 }
 
 template<typename T, typename FieldT> 
@@ -105,27 +116,15 @@ void toGPUField (
 
 fields::mnt4753_G2 startKernel(fields::mnt4753_G2 *d_vec, fields::Scalar *d_scalar, int length)
 {
-    uint smemSize = length / 2;
-    dim3 dimGrid (GRID_SIZE, GRID_SIZE);
-    dim3 dimBlock (BLOCK_SIZE, BLOCK_SIZE);
-    uint threads = dimGrid.x * dimGrid.y;
-
     fields::mnt4753_G2 *result;
-    cudaMalloc(&result, sizeof(fields::mnt4753_G2));
-    switch (threads)
-    {
-        case 1024:
-        device_multi_exp_inner<fields::mnt4753_G2,fields::Scalar,2048>
-          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, result, length); break;
-        /*
-        case 2048:
-        device_multi_exp_inner<fields::Field,fields::Field,1024>
-          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, vec_size); break;
-        case 512:
-        device_multi_exp_inner<fields::Field,fields::Field,512>
-          <<< dimGrid, dimBlock, smemSize >>>(d_vec, d_scalar, vec_size); break;
-        */
-    }
+    int threads = 512;
+    int blocks = min((length + threads - 1) / threads, 1024);
+    cudaMalloc(&result, sizeof(fields::mnt4753_G2) * 1024);
+
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+    //two runs of the kernel, better efficiency
+    deviceReduceKernel<<<blocks, threads>>>(d_vec, d_scalar, result, length);
+    deviceReduceKernelSecond<<<1, 1024>>>(result, result, blocks);
 
     fields::mnt4753_G2 res;
     cudaMemcpy(&res, result, sizeof(fields::mnt4753_G2), cudaMemcpyDeviceToHost);
@@ -153,4 +152,5 @@ T cuda_multi_exp_inner(
     fields::mnt4753_G2 res = startKernel(d_vec, d_scalar, (vec_end - vec_start));
 
     return res;
+}
 }

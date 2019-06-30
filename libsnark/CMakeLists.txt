@@ -219,6 +219,8 @@ target_link_libraries(
   snark
 )
 
+find_package(CUDA REQUIRED)
+
 add_library (
     prover_reference_functions STATIC
     prover_reference_functions.cpp
