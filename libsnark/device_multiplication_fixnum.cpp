@@ -25,7 +25,7 @@ struct fp2 {
 
     fp2 () = default;
 
-    cu_fun static fp2 zero()
+    fixnum static fp2 zero()
     {
         fp2 res;
         res.x = fixnum(0);
@@ -77,25 +77,29 @@ struct fieldElement {
     fp2<fixnum> y;
     fp2<fixnum> z;
 
-    cu_fun fieldElement() {
+    fixnum long idxOfLNZ(const fixnum& fld);
+
+    fixnum bool hasBitAt(const fixnum& fld, long index);
+
+    fixnum fieldElement() {
         x = fp2::zero();
         y = fp2::zero();
         z = fp2::zero();
     }
 
-    cu_fun fieldElement(fp2 _x, fp2 _y, fp2 _z)
+    fixnum fieldElement(fp2 _x, fp2 _y, fp2 _z)
     {
         x = _x;
         y = _y;
         z = _z;
     }
 
-    cu_fun static fieldElement zero()
+    fixnum static fieldElement zero()
     {
         return fieldElement(fp2::zero(), fp2::zero(), fp2::zero());
     }
 
-    cu_fun fieldElement operator+(const fieldElement& other) const
+    fixnum fieldElement operator+(const fieldElement& other) const
     {
         const fp2 X1Z2 = this->x * other.z;
         const fp2 Y1Z2 = this->y * other.z;
@@ -113,22 +117,22 @@ struct fieldElement {
         return fieldElement(X3, Y3, Z3);
     }
 
-    cu_fun void operator+=(const fieldElement& other)
+    fixnum void operator+=(const fieldElement& other)
     {
         *this = *this + other;
     }
 
-    cu_fun fieldElement operator-() const
+    fixnum fieldElement operator-() const
     {
         return fieldElement(this->x, -(this->y), this->z);
     }
 
-    cu_fun fieldElement operator-(const fieldElement &other) const
+    fixnum fieldElement operator-(const fieldElement &other) const
     {
         return (*this) + (-other);
     }
 
-    cu_fun fieldElement operator*(const fixnum &other) const
+    fixnum fieldElement operator*(const fixnum &other) const
     {
         fieldElement result = zero();
 

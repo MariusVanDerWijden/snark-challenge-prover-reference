@@ -226,17 +226,17 @@ struct fp2 {
 };
 
 struct mnt4753_G2 {
-    fp2 x;
-    fp2 y;
-    fp2 z;
+    Scalar x;
+    Scalar y;
+    Scalar z;
 
     cu_fun mnt4753_G2() {
-        x = fp2::zero();
-        y = fp2::zero();
-        z = fp2::zero();
+        x = Scalar::zero();
+        y = Scalar::zero();
+        z = Scalar::zero();
     }
 
-    cu_fun mnt4753_G2(fp2 _x, fp2 _y, fp2 _z)
+    cu_fun mnt4753_G2(Scalar _x, Scalar _y, Scalar _z)
     {
         x = _x;
         y = _y;
@@ -245,24 +245,24 @@ struct mnt4753_G2 {
 
     cu_fun static mnt4753_G2 zero()
     {
-        return mnt4753_G2(fp2::zero(), fp2::zero(), fp2::zero());
+        return mnt4753_G2(Scalar::zero(), Scalar::zero(), Scalar::zero());
     }
 
     cu_fun mnt4753_G2 operator+(const mnt4753_G2& other) const
     {
-        const fp2 X1Z2 = this->x * other.z;
-        const fp2 Y1Z2 = this->y * other.z;
-        const fp2 Z1Z2 = this->z * other.z;
-        const fp2 u = other.y * this->z - Y1Z2;
-        const fp2 uu = u * u;
-        const fp2 v = other.x * this->z - X1Z2;
-        const fp2 vv = v * v;
-        const fp2 vvv = vv * v;
-        const fp2 R = vv * X1Z2;
-        const fp2 A = uu * Z1Z2 - (vvv + R + R);
-        const fp2 X3 = v * A;
-        const fp2 Y3 = u * (R-A) - vvv * Y1Z2;
-        const fp2 Z3 = vvv * Z1Z2;
+        const Scalar X1Z2 = this->x * other.z;
+        const Scalar Y1Z2 = this->y * other.z;
+        const Scalar Z1Z2 = this->z * other.z;
+        const Scalar u = other.y * this->z - Y1Z2;
+        const Scalar uu = u * u;
+        const Scalar v = other.x * this->z - X1Z2;
+        const Scalar vv = v * v;
+        const Scalar vvv = vv * v;
+        const Scalar R = vv * X1Z2;
+        const Scalar A = uu * Z1Z2 - (vvv + R + R);
+        const Scalar X3 = v * A;
+        const Scalar Y3 = u * (R-A) - vvv * Y1Z2;
+        const Scalar Z3 = vvv * Z1Z2;
         return mnt4753_G2(X3, Y3, Z3);
     }
 
@@ -302,9 +302,9 @@ struct mnt4753_G2 {
     cu_fun static mnt4753_G2 shuffle_down(unsigned mask, mnt4753_G2 val, unsigned offset)
     {
         mnt4753_G2 result;
-        result.x = fp2::shuffle_down(mask, val.x, offset);
-        result.y = fp2::shuffle_down(mask, val.y, offset);
-        result.z = fp2::shuffle_down(mask, val.z, offset);
+        result.x = Scalar::shuffle_down(mask, val.x, offset);
+        result.y = Scalar::shuffle_down(mask, val.y, offset);
+        result.z = Scalar::shuffle_down(mask, val.z, offset);
         return result;
     }
 };
