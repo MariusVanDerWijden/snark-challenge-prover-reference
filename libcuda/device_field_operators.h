@@ -21,7 +21,7 @@
 
 #include "device_field.h"
 
-#define SIZE (256 / 32)
+#define SIZE (768 / 32)
 
 #if defined(__CUDA_ARCH__)
 #define _clz __clz
@@ -100,8 +100,6 @@ cu_fun void set_mod(const Scalar& f)
 cu_fun bool less(const uint32_t* element1, const size_t e1_size, const uint32_t* element2, const size_t e2_size)
 {
     assert(e1_size == e2_size);
-    
-    #pragma unroll
     for(size_t i = 0; i < SIZE; i++)
         if(element1[i] > element2[i])
             return false;

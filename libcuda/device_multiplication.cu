@@ -152,5 +152,5 @@ T cuda_multi_exp_inner(
 	
     fields::mnt4753_G2 res = startKernel(d_vec, d_scalar, (vec_end - vec_start));
 
-    return NULL;
+    return res;
 }

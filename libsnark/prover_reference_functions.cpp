@@ -25,13 +25,6 @@
 using namespace libff;
 using namespace libsnark;
 
-template<typename T, typename FieldT>
-T cuda_multi_exp_inner(
-    typename std::vector<T>::const_iterator vec_start,
-    typename std::vector<T>::const_iterator vec_end,
-    typename std::vector<FieldT>::const_iterator scalar_start,
-    typename std::vector<FieldT>::const_iterator scalar_end);
-
 template<typename T, typename FieldT, multi_exp_method Method>
 T local_multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator vec_start,
                                 typename std::vector<T>::const_iterator vec_end,
